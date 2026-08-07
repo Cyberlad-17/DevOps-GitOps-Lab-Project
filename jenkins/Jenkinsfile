@@ -1,43 +1,96 @@
 pipeline {
-
     agent any
 
     environment {
-
         REGISTRY = "host.minikube.internal:5000"
-
         IMAGE = "flask-app"
-
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        GIT_EMAIL = "jenkins@local"
+        GIT_NAME = "Jenkins"
     }
 
     stages {
 
         stage('Checkout') {
-
             steps {
-
                 checkout scm
-
             }
-
         }
 
-        stage('Build Docker') {
-
+        stage('Show Environment') {
             steps {
-
                 sh '''
+                    pwd
+                    ls -la
+                    docker version
+                    git branch
+                '''
+            }
+        }
 
-                 docker build \
-                 -t flask-app:${BUILD_NUMBER} \
-                 app/
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    docker build \
+                      -t ${REGISTRY}/${IMAGE}:${IMAGE_TAG} \
+                      ./app
+                '''
+            }
+        }
 
-                 '''
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                    docker push ${REGISTRY}/${IMAGE}:${IMAGE_TAG}
+                '''
+            }
+        }
 
-             } 
+        stage('Update Helm Chart') {
+            steps {
+                sh '''
+                    sed -i "s/tag:.*/tag: ${IMAGE_TAG}/" helm/flask-app/values.yaml
 
+                    echo "Updated values.yaml"
+
+                    cat helm/flask-app/values.yaml
+                '''
+            }
+        }
+
+        stage('Commit Git Changes') {
+            steps {
+                sh '''
+                    git config user.email "${GIT_EMAIL}"
+                    git config user.name "${GIT_NAME}"
+
+                    git add helm/flask-app/values.yaml
+
+                    git diff --cached --quiet || git commit -m "Release ${IMAGE_TAG}"
+
+                    git push origin main
+                '''
+            }
         }
 
     }
 
+    post {
+
+        success {
+
+            echo "======================================="
+            echo " Jenkins Build Successful"
+            echo " Image: ${REGISTRY}/${IMAGE}:${IMAGE_TAG}"
+            echo " ArgoCD will detect Git change"
+            echo " Kubernetes will rollout new Pods"
+            echo "======================================="
+        }
+
+        failure {
+
+            echo "Pipeline Failed"
+
+        }
+    }
 }
