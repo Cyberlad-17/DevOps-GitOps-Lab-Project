@@ -1,0 +1,27 @@
+pipeline {
+
+    agent any
+
+    environment {
+
+        REGISTRY = "host.minikube.internal:5000"
+
+        IMAGE = "flask-app"
+
+    }
+
+    stages {
+
+        stage('Checkout') {
+
+            steps {
+
+                checkout scm
+
+            }
+
+        }
+
+    }
+
+}
