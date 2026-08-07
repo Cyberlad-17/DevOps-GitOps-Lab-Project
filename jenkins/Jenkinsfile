@@ -22,6 +22,22 @@ pipeline {
 
         }
 
+        stage('Build Docker') {
+
+            steps {
+
+                sh '''
+
+                 docker build \
+                 -t flask-app:${BUILD_NUMBER} \
+                 app/
+
+                 '''
+
+             } 
+
+        }
+
     }
 
 }
