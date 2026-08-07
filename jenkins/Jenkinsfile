@@ -2,10 +2,10 @@ pipeline {
     agent any
 
     environment {
-        REGISTRY = "host.minikube.internal:5000"
-        IMAGE = "flask-app"
+        REGISTRY = "localhost:5000"
+        IMAGE_NAME = "flask-app"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        GIT_EMAIL = "jenkins@local"
+        GIT_EMAIL = "jenkins@example.com"
         GIT_NAME = "Jenkins"
     }
 
@@ -20,10 +20,10 @@ pipeline {
         stage('Show Environment') {
             steps {
                 sh '''
-                    pwd
-                    ls -la
-                    docker version
-                    git branch
+                pwd
+                ls -la
+                docker version
+                git branch
                 '''
             }
         }
@@ -31,9 +31,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker build \
-                      -t ${REGISTRY}/${IMAGE}:${IMAGE_TAG} \
-                      ./app
+                docker build \
+                -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                ./app
                 '''
             }
         }
@@ -41,7 +41,7 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 sh '''
-                    docker push ${REGISTRY}/${IMAGE}:${IMAGE_TAG}
+                docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                 '''
             }
         }
@@ -49,27 +49,32 @@ pipeline {
         stage('Update Helm Chart') {
             steps {
                 sh '''
-                    sed -i "s/tag:.*/tag: ${IMAGE_TAG}/" helm/flask-app/values.yaml
-
-                    echo "Updated values.yaml"
-
-                    cat helm/flask-app/values.yaml
+                sed -i "s/^  tag:.*/  tag: ${IMAGE_TAG}/" helm/flask-app/values.yaml
                 '''
             }
         }
 
         stage('Commit Git Changes') {
             steps {
-                sh '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-pat-token',
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'TOKEN'
+                )]) {
+
+                    sh '''
                     git config user.email "${GIT_EMAIL}"
                     git config user.name "${GIT_NAME}"
 
                     git add helm/flask-app/values.yaml
 
-                    git diff --cached --quiet || git commit -m "Release ${IMAGE_TAG}"
+                    git diff --cached --quiet || git commit -m "Update image tag to ${IMAGE_TAG}"
 
-                    git push origin main
-                '''
+                    git remote set-url origin https://${USERNAME}:${TOKEN}@github.com/Cyberlad-17/DevOps-GitOps-Lab-Project.git
+
+                    git push origin HEAD:main
+                    '''
+                }
             }
         }
 
@@ -78,19 +83,12 @@ pipeline {
     post {
 
         success {
-
-            echo "======================================="
-            echo " Jenkins Build Successful"
-            echo " Image: ${REGISTRY}/${IMAGE}:${IMAGE_TAG}"
-            echo " ArgoCD will detect Git change"
-            echo " Kubernetes will rollout new Pods"
-            echo "======================================="
+            echo "Pipeline Completed Successfully"
         }
 
         failure {
-
             echo "Pipeline Failed"
-
         }
+
     }
 }
