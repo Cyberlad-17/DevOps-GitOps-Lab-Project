@@ -9,7 +9,7 @@ spec:
   project: default
 
   source:
-    repoURL: git@github.com:Cyberlad-17/DevOps-GitOps-Lab-Project.git
+    repoURL: https://github.com/Cyberlad-17/DevOps-GitOps-Lab-Project.git
     targetRevision: main
     path: helm/flask-app
 
